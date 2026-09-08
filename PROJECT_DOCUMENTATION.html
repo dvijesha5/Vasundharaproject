@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BizLens — Architecture & Functional Reference Guide</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --accent: #4f46e5;
+      --accent-light: #e0e7ff;
+      --border: #e2e8f0;
+      --code-bg: #f8fafc;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+      background: var(--bg);
+    }
+    h1 {
+      font-size: 2.25rem;
+      color: #0f172a;
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 0.5rem;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 1.5rem;
+      color: #1e293b;
+      margin-top: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+    h3 {
+      font-size: 1.2rem;
+      color: #334155;
+      margin-top: 1.5rem;
+    }
+    h4 {
+      font-size: 1.05rem;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+    p, li {
+      font-size: 0.95rem;
+    }
+    ul, ol {
+      padding-left: 1.5rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+    }
+    th {
+      background-color: #f1f5f9;
+      font-weight: 600;
+    }
+    tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+    code {
+      font-family: Consolas, Monaco, "Courier New", Courier, monospace;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: #0f172a;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin: 1rem 0;
+      background: #fafafa;
+    }
+    .print-banner {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+    }
+    @media print {
+      .print-banner { display: none; }
+      body { max-width: 100%; padding: 0; }
+      h2 { page-break-before: auto; }
+      table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-banner">
+    💡 <strong>How to save as PDF:</strong> Press <code>Ctrl + P</code> (Windows) or <code>Cmd + P</code> (Mac), select <strong>"Save as PDF"</strong>, ensure <strong>Background graphics</strong> is enabled, and click Save.
+  </div>
+
+  <h1>BizLens — Architecture & Functional Reference Guide</h1>
+  <p><em>Enterprise Multi-Tenant Business Intelligence &amp; Financial Analytics Platform</em></p>
+
+  <h2>1. Executive Summary</h2>
+  <p><strong>BizLens</strong> is a cloud-native SaaS analytics platform designed to solve core data challenges for businesses:</p>
+  <ul>
+    <li><strong>Automated Ingestion &amp; Sanitization</strong>: Cleans raw CSV sales and expense datasets through a 5-stage ETL pipeline.</li>
+    <li><strong>Executive KPIs &amp; Formulas</strong>: Instantly computes Gross Revenue, Net Profit, Profit Margin %, AOV, and PoP growth.</li>
+    <li><strong>Automated Root-Cause Analysis</strong>: Identifies exactly which products, regions, and cost surges drove monthly profit swings.</li>
+    <li><strong>RFM Customer Segmentation</strong>: Automatically classifies buyers into VIP, High-Value, Regular, At-Risk, and Churned cohorts.</li>
+    <li><strong>Security &amp; Audit Logging</strong>: Tracks every authentication attempt with IP, device fingerprint, and authorization state.</li>
+  </ul>
+
+  <h2>2. Core Modules &amp; Functional Breakdown</h2>
+
+  <h3>A. Authentication &amp; Security (<code>backend/users/</code>)</h3>
+  <div class="card">
+    <h4><code>LoginView.post(request)</code></h4>
+    <p><strong>Significance:</strong> Gatekeeper for the platform. Validates user credentials, issues dual JWT tokens (access + refresh), and triggers immutable security logging.</p>
+    <p><strong>Audit Logic:</strong> Creates a <code>LoginRecord</code> row for every authentication event (capturing status <code>SUCCESS</code> or <code>FAILED</code> along with detailed reasons: <em>Account does not exist</em>, <em>Incorrect password</em>, etc.).</p>
+
+    <h4><code>get_client_ip(request)</code></h4>
+    <p><strong>Significance:</strong> Resolves the genuine client IP address through proxies and serverless gateways via <code>HTTP_X_FORWARDED_FOR</code> or <code>REMOTE_ADDR</code>.</p>
+
+    <h4><code>LoginHistoryView.get(request)</code></h4>
+    <p><strong>Significance:</strong> Audit log inspection view. Enforces <code>IsAdminUser</code> permissions so that <strong>only superusers and staff can view login attempts</strong> (returns HTTP 403 Forbidden to regular users).</p>
+  </div>
+
+  <h3>B. Multi-Tenancy &amp; Isolation (<code>backend/businesses/</code>)</h3>
+  <div class="card">
+    <h4><code>IsBusinessMember.has_permission(request, view)</code></h4>
+    <p><strong>Significance:</strong> Multi-tenant isolation firewall. Validates the <code>X-Business-ID</code> header and guarantees users can only access data belonging to organizations where they hold active membership.</p>
+
+    <h4><code>BusinessListCreateView.get_queryset(self)</code></h4>
+    <p><strong>Significance:</strong> Allows a single user (e.g. an accountant or multi-brand founder) to switch seamlessly across multiple companies without data leakage.</p>
+  </div>
+
+  <h3>C. Data Ingestion &amp; Cleaning Pipeline (<code>backend/uploads/</code>)</h3>
+  <div class="card">
+    <h4><code>process_sales_csv(file_obj, business)</code></h4>
+    <p><strong>Significance:</strong> 5-stage automated in-memory ETL pipeline for sales data:</p>
+    <ol>
+      <li><strong>Deduplication</strong>: Eliminates identical sales records.</li>
+      <li><strong>String Sanitization</strong>: Trims whitespace and normalizes case.</li>
+      <li><strong>Numeric Coercion</strong>: Cleans currency symbols and converts to IEEE-754 floats.</li>
+      <li><strong>Date Normalization</strong>: Converts multiple date formats into ISO standard dates.</li>
+      <li><strong>Data Hygiene Scoring</strong>: Computes <code>quality_score = (valid_records / total_records) * 100</code>.</li>
+    </ol>
+    <p>Executed inside a database <code>transaction.atomic()</code> block to ensure zero data corruption.</p>
+
+    <h4><code>process_expenses_csv(file_obj, business)</code></h4>
+    <p><strong>Significance:</strong> Ingestion pipeline for OPEX costs, mapping categories to Marketing, Payroll, Rent, Logistics, and Utilities.</p>
+  </div>
+
+  <h3>D. Financial Analytics Algorithms (<code>backend/analytics/</code>)</h3>
+  <div class="card">
+    <h4><code>calculate_revenue_metrics(business, start_date, end_date)</code></h4>
+    <p><strong>Significance:</strong> Computes top-line performance indicators:</p>
+    <ul>
+      <li><strong>Total Revenue</strong>: Aggregated via <code>Sum('total_amount')</code>.</li>
+      <li><strong>Average Order Value (AOV)</strong>: <code>Total Revenue / Total Orders</code>.</li>
+      <li><strong>Growth %</strong>: Period-over-Period variance between recent periods.</li>
+      <li><strong>Regional Distribution</strong>: Revenue contribution grouped by sales territory.</li>
+    </ul>
+
+    <h4><code>calculate_expense_metrics(business, start_date, end_date)</code></h4>
+    <p><strong>Significance:</strong> Computes bottom-line metrics:</p>
+    <ul>
+      <li><strong>Net Profit</strong> = <code>Total Revenue - Total Expenses</code>.</li>
+      <li><strong>Profit Margin %</strong> = <code>(Net Profit / Total Revenue) * 100</code>.</li>
+    </ul>
+
+    <h4><code>calculate_customer_analytics(business)</code></h4>
+    <p><strong>Significance:</strong> Implements <strong>RFM (Recency, Frequency, Monetary)</strong> segmentation:</p>
+    <ul>
+      <li><span class="badge">VIP</span>: High spend (&ge; ₹1,00,000), &ge; 3 orders, purchased within 60 days.</li>
+      <li><span class="badge">High Value</span>: Spend &ge; ₹50,000 within 90 days.</li>
+      <li><span class="badge">Regular</span>: Active within 90 days.</li>
+      <li><span class="badge">At Risk</span>: Lapsed (91–180 days since last order).</li>
+      <li><span class="badge">Churned</span>: Inactive (&gt; 180 days since last purchase).</li>
+    </ul>
+
+    <h4><code>perform_root_cause_analysis(business)</code></h4>
+    <p><strong>Significance:</strong> Automated diagnostic algorithm. Compares the two most recent monthly periods to explain <em>why</em> revenue or margins shifted, pinpointing the single largest declining product and underperforming region.</p>
+  </div>
+
+  <h3>E. AI Business Intelligence Assistant (<code>backend/insights/</code>)</h3>
+  <div class="card">
+    <h4><code>AskBusinessInsightView.post(request)</code></h4>
+    <p><strong>Significance:</strong> Natural language query engine. Interprets business questions (e.g. <em>"Why did revenue fall?"</em> or <em>"Which product is best?"</em>) and responds with synthesized calculations.</p>
+  </div>
+
+  <h3>F. Serverless Gateway &amp; Runtime (<code>api/index.py</code>)</h3>
+  <div class="card">
+    <h4><code>handler(environ, start_response)</code></h4>
+    <p><strong>Significance:</strong> The WSGI serverless adapter for Vercel:</p>
+    <ul>
+      <li><strong>Dynamic Path Discovery</strong>: Scans Lambda container directories to resolve imports.</li>
+      <li><strong>Path Normalization</strong>: Restores <code>HTTP_X_FORWARDED_URI</code> to neutralize Vercel rewrite changes.</li>
+      <li><strong>SQLite Bridge</strong>: Automatically copies pre-migrated <code>db.sqlite3</code> to <code>/tmp/db.sqlite3</code> for writable serverless execution.</li>
+      <li><strong>Diagnostic Catching</strong>: Traps uncaught exceptions and displays exact tracebacks instead of generic crashes.</li>
+    </ul>
+  </div>
+
+  <h2>3. Database Models Reference</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>App</th>
+        <th>Key Attributes</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>User</code></td>
+        <td><code>users</code></td>
+        <td>email, username, full_name, is_staff, is_superuser</td>
+        <td>User identity with email-based authentication.</td>
+      </tr>
+      <tr>
+        <td><code>LoginRecord</code></td>
+        <td><code>users</code></td>
+        <td>email, user, ip_address, user_agent, status, timestamp</td>
+        <td>Immutable security audit trail.</td>
+      </tr>
+      <tr>
+        <td><code>Business</code></td>
+        <td><code>businesses</code></td>
+        <td>name, industry, currency, created_at</td>
+        <td>Multi-tenant organization profile.</td>
+      </tr>
+      <tr>
+        <td><code>BusinessMembership</code></td>
+        <td><code>businesses</code></td>
+        <td>business, user, role (OWNER, ADMIN, ANALYST)</td>
+        <td>Granular role permissions per tenant.</td>
+      </tr>
+      <tr>
+        <td><code>Sale</code></td>
+        <td><code>sales</code></td>
+        <td>product_name, customer_code, region, total_amount, date</td>
+        <td>Transactional sales ledger.</td>
+      </tr>
+      <tr>
+        <td><code>Expense</code></td>
+        <td><code>expenses</code></td>
+        <td>category, vendor, amount, date</td>
+        <td>Transactional cost ledger.</td>
+      </tr>
+      <tr>
+        <td><code>Dataset</code></td>
+        <td><code>uploads</code></td>
+        <td>file_name, status, total_records, quality_score</td>
+        <td>Ingestion history and cleaning metadata.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. Client-Side Architecture</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Component</th>
+        <th>Path</th>
+        <th>Functionality</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>AuthContext</code></td>
+        <td><code>frontend/src/context/AuthContext.tsx</code></td>
+        <td>Stores JWT tokens in localStorage, handles login/logout and session checks.</td>
+      </tr>
+      <tr>
+        <td><code>BusinessContext</code></td>
+        <td><code>frontend/src/context/BusinessContext.tsx</code></td>
+        <td>Manages the active business organization and injects headers.</td>
+      </tr>
+      <tr>
+        <td><code>LoginAudit</code></td>
+        <td><code>frontend/src/pages/LoginAudit.tsx</code></td>
+        <td>Admin-only dashboard displaying real-time security logs and filters.</td>
+      </tr>
+      <tr>
+        <td><code>Sidebar</code></td>
+        <td><code>frontend/src/components/Sidebar.tsx</code></td>
+        <td>Navigation drawer with dynamic permission-based links.</td>
+      </tr>
+    </tbody>
+  </table>
+
+</body>
+</html>
