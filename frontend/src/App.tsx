@@ -14,6 +14,7 @@ import { Customers } from './pages/Customers';
 import { Transactions } from './pages/Transactions';
 import { Upload } from './pages/Upload';
 import { Insights } from './pages/Insights';
+import { LoginAudit } from './pages/LoginAudit';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { Landing } from './pages/Landing';
 import { HowItWorks } from './pages/HowItWorks';
@@ -42,12 +43,14 @@ const ProtectedLayout: React.FC = () => {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/insights" element={<Insights />} />
+            <Route path="/audit" element={<LoginAudit />} />
           </Routes>
         </main>
       </div>
     </div>
   );
 };
+
 
 export const App: React.FC = () => {
   return (

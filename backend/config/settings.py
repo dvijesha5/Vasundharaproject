@@ -64,10 +64,38 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database Setup: Supports PostgreSQL with env config & zero-config SQLite local fallback
+# Database Setup: Supports DATABASE_URL, POSTGRES_URL, individual env vars & SQLite fallback
+database_url = (
+    os.environ.get('DATABASE_URL')
+    or os.environ.get('POSTGRES_URL')
+    or os.environ.get('POSTGRES_PRISMA_URL')
+    or os.environ.get('POSTGRES_URL_NON_POOLING')
+)
 USE_POSTGRES = os.environ.get('USE_POSTGRES', 'False').lower() in ('true', '1', 't')
 
-if USE_POSTGRES:
+if database_url:
+    try:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.parse(database_url, conn_max_age=600, ssl_require=True)
+        }
+    except ImportError:
+        import urllib.parse as urlparse
+        url = urlparse.urlparse(database_url)
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': url.path.lstrip('/').split('?')[0],
+                'USER': url.username,
+                'PASSWORD': url.password,
+                'HOST': url.hostname,
+                'PORT': url.port or 5432,
+                'OPTIONS': {
+                    'sslmode': 'require' if 'sslmode=require' in url.query else 'prefer',
+                },
+            }
+        }
+elif USE_POSTGRES:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -79,10 +107,13 @@ if USE_POSTGRES:
         }
     }
 else:
+    # On Vercel Lambda only /tmp is writable
+    is_vercel = os.environ.get('VERCEL') == '1' or not os.access(str(BASE_DIR), os.W_OK)
+    sqlite_path = Path('/tmp/db.sqlite3') if is_vercel else BASE_DIR / 'db.sqlite3'
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': sqlite_path,
         }
     }
 
@@ -106,10 +137,18 @@ SIMPLE_JWT = {
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

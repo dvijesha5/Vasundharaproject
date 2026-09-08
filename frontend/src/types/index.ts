@@ -3,7 +3,23 @@ export interface User {
   username: string;
   email: string;
   full_name?: string;
+  is_staff?: boolean;
+  is_superuser?: boolean;
 }
+
+export interface LoginRecord {
+  id: number;
+  user?: number;
+  user_email?: string;
+  user_name?: string;
+  email: string;
+  ip_address?: string;
+  user_agent: string;
+  status: 'SUCCESS' | 'FAILED';
+  failure_reason?: string;
+  timestamp: string;
+}
+
 
 export interface Business {
   id: number;

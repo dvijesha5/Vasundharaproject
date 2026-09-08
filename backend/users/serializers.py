@@ -3,12 +3,35 @@ import re
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
+from .models import LoginRecord
+
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'full_name', 'first_name', 'last_name')
+        fields = ('id', 'username', 'email', 'full_name', 'first_name', 'last_name', 'is_staff', 'is_superuser')
+
+
+class LoginRecordSerializer(serializers.ModelSerializer):
+    user_email = serializers.ReadOnlyField(source='user.email')
+    user_name = serializers.ReadOnlyField(source='user.full_name')
+
+    class Meta:
+        model = LoginRecord
+        fields = (
+            'id',
+            'user',
+            'user_email',
+            'user_name',
+            'email',
+            'ip_address',
+            'user_agent',
+            'status',
+            'failure_reason',
+            'timestamp',
+        )
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=False, allow_blank=True, write_only=True)
