@@ -43,9 +43,10 @@ tmp/
 temp/
 *.tmp
 
-# Uploads / generated content
-uploads/
-public/uploads/
+# Uploaded media files
+media/
+public/media/
+
 
 # OS/editor files
 .DS_Store

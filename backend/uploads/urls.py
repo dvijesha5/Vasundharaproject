@@ -1,0 +1,7 @@
+from django.urls import path
+from .views import CSVUploadView, DatasetListView
+
+urlpatterns = [
+    path('upload/', CSVUploadView.as_view(), name='csv_upload'),
+    path('', DatasetListView.as_view(), name='dataset_list'),
+]
