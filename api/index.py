@@ -60,8 +60,20 @@ def handler(environ, start_response):
         start_response('500 Internal Server Error', [('Content-Type', 'text/plain; charset=utf-8')])
         return [f"Django Initialization Error on Serverless:\n\n{init_error}".encode('utf-8')]
 
+    # Restore original requested path if Vercel rewritten destination set PATH_INFO to /api/index.py
+    current_path = environ.get('PATH_INFO', '')
+    if 'index.py' in current_path:
+        original_uri = (
+            environ.get('HTTP_X_FORWARDED_URI')
+            or environ.get('HTTP_X_MATCHED_PATH')
+            or environ.get('RAW_URI')
+        )
+        if original_uri:
+            environ['PATH_INFO'] = original_uri.split('?')[0]
+
     try:
         return django_app(environ, start_response)
+
     except Exception as e:
         tb = traceback.format_exc()
         print(f"Request Error:\n{tb}")
