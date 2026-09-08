@@ -14,6 +14,7 @@ declare global {
   interface ImportMeta {
     env: {
       VITE_RAZORPAY_KEY_ID?: string;
+      VITE_API_URL?: string;
     };
   }
 }
