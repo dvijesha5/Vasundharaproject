@@ -1,26 +1,71 @@
 import os
 import sys
+import traceback
 from pathlib import Path
 
-# Add backend directory to sys.path so Django can find apps and config
-BASE_DIR = Path(__file__).resolve().parent.parent
-backend_path = os.path.join(BASE_DIR, 'backend')
+# Robust path discovery for Vercel Serverless environment
+current_file = Path(__file__).resolve()
+current_dir = current_file.parent
 
-if backend_path not in sys.path:
-    sys.path.insert(0, backend_path)
+search_paths = [
+    current_dir / 'backend',
+    current_dir.parent / 'backend',
+    current_dir,
+    current_dir.parent,
+    Path('/var/task/backend'),
+    Path('/var/task'),
+]
+
+backend_dir = None
+for p in search_paths:
+    if (p / 'config' / 'settings.py').exists() or (p / 'manage.py').exists():
+        backend_dir = p
+        break
+
+# Add all relevant paths to sys.path
+for p in search_paths:
+    p_str = str(p)
+    if p.exists() and p_str not in sys.path:
+        sys.path.insert(0, p_str)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-# Optional auto-migration runner for Vercel deployments
-if os.environ.get('AUTO_MIGRATE', 'False').lower() in ('true', '1', 't'):
+django_app = None
+init_error = None
+
+try:
+    import django
+    django.setup()
+
+    # Optional auto-migration runner
+    if os.environ.get('AUTO_MIGRATE', 'False').lower() in ('true', '1', 't'):
+        try:
+            from django.core.management import call_command
+            call_command('migrate', interactive=False)
+        except Exception as mig_err:
+            print(f"Auto-migration notice: {mig_err}")
+
+    from django.core.wsgi import get_wsgi_application
+    django_app = get_wsgi_application()
+
+except Exception as e:
+    init_error = traceback.format_exc()
+    print(f"Django WSGI initialization error:\n{init_error}")
+
+
+def handler(environ, start_response):
+    global django_app, init_error
+
+    if init_error:
+        start_response('500 Internal Server Error', [('Content-Type', 'text/plain; charset=utf-8')])
+        return [f"Django Initialization Error on Serverless:\n\n{init_error}".encode('utf-8')]
+
     try:
-        from django.core.management import call_command
-        import django
-        django.setup()
-        call_command('migrate', interactive=False)
+        return django_app(environ, start_response)
     except Exception as e:
-        print(f"Auto-migration warning: {e}")
+        tb = traceback.format_exc()
+        print(f"Request Error:\n{tb}")
+        start_response('500 Internal Server Error', [('Content-Type', 'text/plain; charset=utf-8')])
+        return [f"Server Execution Error:\n\n{tb}".encode('utf-8')]
 
-from config.wsgi import application
-
-app = application
+app = handler

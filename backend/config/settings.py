@@ -109,13 +109,26 @@ elif USE_POSTGRES:
 else:
     # On Vercel Lambda only /tmp is writable
     is_vercel = os.environ.get('VERCEL') == '1' or not os.access(str(BASE_DIR), os.W_OK)
-    sqlite_path = Path('/tmp/db.sqlite3') if is_vercel else BASE_DIR / 'db.sqlite3'
+    if is_vercel:
+        tmp_db = Path('/tmp/db.sqlite3')
+        orig_db = BASE_DIR / 'db.sqlite3'
+        if not tmp_db.exists() and orig_db.exists():
+            import shutil
+            try:
+                shutil.copyfile(orig_db, tmp_db)
+            except Exception as e:
+                print(f"Error copying db.sqlite3 to /tmp: {e}")
+        sqlite_path = tmp_db
+    else:
+        sqlite_path = BASE_DIR / 'db.sqlite3'
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': sqlite_path,
         }
     }
+
 
 AUTH_USER_MODEL = 'users.User'
 
